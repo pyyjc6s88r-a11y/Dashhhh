@@ -363,6 +363,72 @@ function go(n){
 }
 function renderAll(){rHome();}
 
+// ── Motivational quotes ──────────────────────────────────────────────────────
+const QUOTES=[
+  ["You are a luxury that most people don't deserve.",""],
+  ["Do something today that your future self will thank you for.",""],
+  ["She remembered who she was and the game changed.","Lalah Delia"],
+  ["Becoming is better than being.","Carol Dweck"],
+  ["One day or day one. You decide.",""],
+  ["Be so good they can't ignore you.","Steve Martin"],
+  ["The secret of getting ahead is getting started.","Mark Twain"],
+  ["You didn't come this far to only come this far.",""],
+  ["Discipline is choosing between what you want now and what you want most.",""],
+  ["Small steps every day.",""],
+  ["Progress, not perfection.",""],
+  ["Make it happen. Shock everyone.",""],
+  ["She believed she could, so she did.",""],
+  ["Rest if you must, but don't you quit.",""],
+  ["The best time to start was yesterday. The next best time is now.",""],
+  ["Do it with passion or not at all.",""],
+  ["Collect beautiful moments.",""],
+  ["You are doing better than you think.",""],
+  ["Every day is a fresh start.",""],
+  ["Hard work beats talent when talent doesn't work hard.","Tim Notke"],
+  ["Consistency is more important than perfection.",""],
+  ["Invest in yourself. It pays the best interest.","Benjamin Franklin"],
+  ["Dream big. Work hard. Stay humble.",""],
+  ["Your vibe attracts your tribe.",""],
+  ["Be the energy you want to attract.",""],
+  ["Clarity comes from action, not thought.",""],
+  ["Less perfection, more authenticity.",""],
+  ["You got this.",""],
+  ["Create the life you can't wait to wake up to.",""],
+  ["Don't wish for it. Work for it.",""],
+  ["Bloom where you are planted.",""],
+  ["Make today count.",""],
+  ["Be a voice, not an echo.",""],
+  ["The comeback is always stronger than the setback.",""],
+  ["It always seems impossible until it's done.","Nelson Mandela"],
+  ["Act as if what you do makes a difference. It does.","William James"],
+];
+function dailyQuote(){
+  const d=new Date();
+  const idx=(d.getFullYear()*366+d.getMonth()*31+d.getDate())%QUOTES.length;
+  return QUOTES[idx];
+}
+
+function timeProgress(){
+  const now=new Date();
+  const y=now.getFullYear(),mo=now.getMonth(),d=now.getDate(),h=now.getHours(),mi=now.getMinutes();
+  const startOfYear=new Date(y,0,1),endOfYear=new Date(y+1,0,1);
+  const dayOfYear=Math.floor((now-startOfYear)/86400000)+1;
+  const daysInYear=Math.round((endOfYear-startOfYear)/86400000);
+  const daysInMonth=new Date(y,mo+1,0).getDate();
+  const dow=now.getDay();
+  const startOfQ=new Date(y,[0,3,6,9][Math.floor(mo/3)],1);
+  const endOfQ=new Date(y,[0,3,6,9][Math.floor(mo/3)]+3,1);
+  return[
+    {label:'Year',val:`${dayOfYear}/${daysInYear}`,pct:Math.round(dayOfYear/daysInYear*100)},
+    {label:'Month',val:`${d}/${daysInMonth}`,pct:Math.round(d/daysInMonth*100)},
+    {label:'Week',val:`${dow===0?7:dow}/7`,pct:Math.round((dow===0?7:dow)/7*100)},
+    {label:'Day',val:`${h}:${String(mi).padStart(2,'0')}`,pct:Math.round((h*60+mi)/(24*60)*100)},
+    {label:'Quarter',val:`${Math.floor((now-startOfQ)/86400000)+1}/${Math.round((endOfQ-startOfQ)/86400000)}`,pct:Math.min(100,Math.round((now-startOfQ)/(endOfQ-startOfQ)*100))},
+  ];
+}
+
+let homeView='daily';
+
 // ══════════════════════════════════════════════════════════════════════════════
 // HOME
 // ══════════════════════════════════════════════════════════════════════════════
@@ -371,6 +437,7 @@ function rHome(){
   const now=new Date();
   const d=S.personal;
   const pend=d.tasks.filter(t=>!t.done);
+  const doneCount=d.tasks.filter(t=>t.done).length;
   const avgG=d.goals.length?Math.round(d.goals.reduce((s,g)=>s+g.pct,0)/d.goals.length):0;
   const habDone=S.habits.filter(h=>wkChecks(h)[DOW()]).length;
   const mo=now.getMonth(),yr=now.getFullYear();
@@ -379,138 +446,106 @@ function rHome(){
   const exp=txMo.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
   const lh=S.health.length?S.health[S.health.length-1]:null;
   const reading=S.books.filter(b=>b.status==='reading');
-  const todayEvs=calEvs.filter(e=>{const dd=e.start;return dd.getFullYear()===now.getFullYear()&&dd.getMonth()===now.getMonth()&&dd.getDate()===now.getDate()}).slice(0,4);
-  const wins=d.achievements.slice(-3).reverse();
+  const todayEvs=calEvs.filter(e=>{const dd=e.start;return dd.getFullYear()===now.getFullYear()&&dd.getMonth()===now.getMonth()&&dd.getDate()===now.getDate()}).slice(0,5);
+  const tp=timeProgress();
+  const [quote,author]=dailyQuote();
+  const wkHabPct=S.habits.length?Math.round(S.habits.reduce((sum,h)=>{const c=wkChecks(h);return sum+c.filter(Boolean).length;},0)/(S.habits.length*7)*100):0;
+
+  const pbarHTML=(pct)=>`<div style="flex:1;height:13px;border:1px solid #333;background:#fff;position:relative;overflow:hidden"><div style="position:absolute;left:0;top:0;height:100%;width:${pct}%;background:#333;transition:width .4s"></div></div>`;
+
+  const taskRows=(list,max)=>list.slice(0,max).map(t=>{
+    const idx=d.tasks.findIndex(x=>x.text===t.text&&x.priority===t.priority);
+    return`<div class="task-row"><div class="task-cb${t.done?' done':''}" onclick="togHome(${idx})"></div><span class="task-txt">${esc(t.text)}</span><span class="pri pri-${t.priority}">${t.priority}</span></div>`;
+  }).join('')||'<div class="empty">all clear</div>';
+
+  const habitDaily=()=>S.habits.length===0?'<div class="empty">none yet</div>':S.habits.map((h,i)=>{
+    const c=wkChecks(h),dn=c[DOW()];
+    return`<div class="task-row"><div class="task-cb${dn?' done':''}" onclick="togHabit(${i},${DOW()})"></div><span class="task-txt">${esc(h.name)}</span><span style="font-size:11px;color:var(--text3);font-style:italic">${calcStreak(h)}wk</span></div>`;
+  }).join('');
+
+  const habitWeekly=()=>S.habits.length===0?'<div class="empty">none yet</div>':S.habits.map((h,i)=>{
+    const c=wkChecks(h),cnt=c.filter(Boolean).length;
+    return`<div style="padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13px">${esc(h.name)}</span><span style="font-size:11px;color:var(--text3);font-style:italic">${cnt}/${h.target}×</span></div>
+      <div style="display:flex;gap:3px">${WK.map((day,di)=>`<div onclick="togHabit(${i},${di})" style="flex:1;text-align:center;cursor:pointer"><div style="font-size:8px;color:var(--text3);margin-bottom:2px;font-style:italic">${day}</div><div style="width:100%;aspect-ratio:1;border-radius:50%;border:1px solid var(--border);background:${c[di]?'var(--text)':'var(--bg)'};margin:0 auto;max-width:22px"></div></div>`).join('')}</div>
+    </div>`;
+  }).join('');
+
+  const habitMonthly=()=>S.habits.map(h=>`<div class="goal-row"><div class="goal-top"><span class="goal-name">${esc(h.name)}</span><span class="goal-pct">🔥${calcStreak(h)}wk</span></div><div class="pbar"><div class="pbar-fill" style="width:${Math.min(100,Math.round(wkChecks(h).filter(Boolean).length/h.target*100))}%"></div></div></div>`).join('')||'<div class="empty">none yet</div>';
 
   el.innerHTML=`
-    <div class="ai-banner">
-      <div class="ai-inner">
-        <div class="ai-label">Daily Briefing</div>
-        <div class="ai-text" id="ai-home">Tap for your personalised briefing.</div>
-      </div>
-      <button class="ai-btn" onclick="homeInsight()">Insight ↗</button>
+    <div style="border:1px solid var(--border);padding:20px 22px;margin-bottom:18px;text-align:center">
+      <div style="font-family:'DM Serif Display',serif;font-size:17px;font-style:italic;color:var(--text);line-height:1.55;margin-bottom:${author?'8px':'0'}">"${esc(quote)}"</div>
+      ${author?`<div style="font-size:10px;color:var(--text3);letter-spacing:.09em;text-transform:uppercase">— ${esc(author)}</div>`:''}
     </div>
 
-    <div class="stat-strip">
+    <div style="border:1px solid var(--border);padding:18px 20px;margin-bottom:18px">
+      <div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:14px">Time passing</div>
+      ${tp.map(t=>`<div style="display:flex;align-items:center;gap:12px;margin-bottom:9px">${pbarHTML(t.pct)}<span style="font-size:12px;color:var(--text2);white-space:nowrap;font-style:italic;min-width:115px">${t.label}: ${t.val}</span></div>`).join('')}
+    </div>
+
+    <div style="display:flex;border:1px solid var(--border);overflow:hidden;margin-bottom:18px">
+      ${['daily','weekly','monthly'].map(v=>`<button onclick="homeView='${v}';rHome()" style="flex:1;padding:9px;font-size:12px;border:none;background:${homeView===v?'var(--text)':'var(--bg)'};color:${homeView===v?'var(--bg)':'var(--text3)'};cursor:pointer;font-family:'DM Serif Text',serif;font-style:italic;border-right:1px solid var(--border);transition:all .15s">${v.charAt(0).toUpperCase()+v.slice(1)}</button>`).join('')}
+    </div>
+
+    <div class="stat-strip" style="margin-bottom:18px">
       <div class="stat-cell" onclick="go('tasks')"><div class="stat-val">${pend.length}</div><div class="stat-label">pending</div></div>
-      <div class="stat-cell" onclick="go('habits')"><div class="stat-val">${habDone}/${S.habits.length||0}</div><div class="stat-label">habits today</div></div>
-      <div class="stat-cell" onclick="go('finance')"><div class="stat-val" style="font-size:16px;color:${inc-exp>=0?'var(--green)':'var(--red)'}">${$M(inc-exp)}</div><div class="stat-label">net this month</div></div>
+      <div class="stat-cell" onclick="go('habits')"><div class="stat-val">${habDone}/${S.habits.length||0}</div><div class="stat-label">habits</div></div>
+      <div class="stat-cell" onclick="go('finance')"><div class="stat-val" style="font-size:15px;color:${inc-exp>=0?'var(--green)':'var(--red)'}">${$M(inc-exp)}</div><div class="stat-label">net</div></div>
       <div class="stat-cell" onclick="go('health')"><div class="stat-val">${lh?lh.readinessScore||'—':'—'}</div><div class="stat-label">readiness</div></div>
     </div>
 
     <div class="two-col">
       <div class="card">
-        <div class="card-label">Today <button class="see-all" onclick="go('calendar')">calendar</button></div>
-        ${!calLoaded?'<div class="empty">loading…</div>':todayEvs.length===0?'<div class="empty">no events today</div>':todayEvs.map(e=>`
-          <div class="ev-item"><div class="ev-dot"></div>
-            <div><div class="ev-title">${esc(e.title)}</div>
-            <div class="ev-time">${e.allDay?'all day':e.start.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</div></div>
-          </div>`).join('')}
+        <div class="card-label">${homeView==='daily'?'Tasks today':homeView==='weekly'?'This week':'Goals'} <button class="see-all" onclick="go('tasks')">view all</button></div>
+        ${homeView==='monthly'
+          ?`<div style="margin-bottom:10px;font-size:12px;color:var(--text2);font-style:italic">${doneCount} completed in ${now.toLocaleDateString('en-US',{month:'long'})}</div>`+
+            (d.goals.length?d.goals.map(g=>`<div class="goal-row"><div class="goal-top"><span class="goal-name">${esc(g.text)}</span><span class="goal-pct">${g.pct}%</span></div><div class="pbar"><div class="pbar-fill" style="width:${g.pct}%"></div></div></div>`).join(''):'<div class="empty">no goals set</div>')
+          :taskRows(pend,homeView==='weekly'?8:6)}
+        ${homeView!=='monthly'?`<div class="inp-row"><input type="text" id="qi" placeholder="add a task…" onkeydown="if(event.key==='Enter')qa()"/><button class="btn" onclick="qa()">Add</button></div>`:''}
       </div>
       <div class="card">
-        <div class="card-label">Tasks <button class="see-all" onclick="go('tasks')">view all</button></div>
-        ${pend.length===0?'<div class="empty">all clear</div>':pend.slice(0,5).map((t,i)=>{
-          const idx=d.tasks.findIndex(x=>x.text===t.text&&x.priority===t.priority);
-          return`<div class="task-row">
-            <div class="task-cb${t.done?' done':''}" onclick="togHome(${idx})"></div>
-            <span class="task-txt">${esc(t.text)}</span>
-            <span class="pri pri-${t.priority}">${t.priority}</span>
-          </div>`;
-        }).join('')}
-        <div class="inp-row">
-          <input type="text" id="qi" placeholder="add a task…" onkeydown="if(event.key==='Enter')qa()"/>
-          <button class="btn" onclick="qa()">Add</button>
+        <div class="card-label">Habits <button class="see-all" onclick="go('habits')">view all</button></div>
+        ${homeView==='daily'?habitDaily():homeView==='weekly'?habitWeekly():habitMonthly()}
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="card">
+        <div class="card-label">Today <button class="see-all" onclick="go('calendar')">calendar</button></div>
+        ${!calLoaded?'<div class="empty">loading…</div>':todayEvs.length===0?'<div class="empty">no events today</div>':todayEvs.map(e=>`<div class="ev-item"><div class="ev-dot"></div><div><div class="ev-title">${esc(e.title)}</div><div class="ev-time">${e.allDay?'all day':e.start.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</div></div></div>`).join('')}
+      </div>
+      <div class="card">
+        <div class="card-label">Reading <button class="see-all" onclick="go('books')">view all</button></div>
+        ${reading.length===0?'<div class="empty">nothing in progress</div>':reading.slice(0,3).map(b=>`<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);align-items:center">${b.cover?`<img src="${esc(b.cover)}" style="width:28px;height:42px;object-fit:cover;flex-shrink:0;border:1px solid var(--border)"/>`:`<div style="width:28px;height:42px;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;color:var(--text3)">▱</div>`}<div style="flex:1;min-width:0"><div style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-style:italic">${esc(b.title)}</div><div class="bk-prog" style="margin-top:5px"><div class="bk-prog-f" style="width:${b.progress||0}%"></div></div><div style="font-size:10px;color:var(--text3);margin-top:3px;font-style:italic">${b.progress||0}%</div></div></div>`).join('')}
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="card">
+        <div class="card-label">Health <button class="see-all" onclick="go('health')">log</button></div>
+        ${lh?`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center;padding-top:4px"><div><div style="font-family:'DM Serif Display',serif;font-size:20px">${lh.readinessScore||'—'}</div><div style="font-size:9px;color:var(--text3);font-style:italic;margin-top:3px">readiness</div></div><div><div style="font-family:'DM Serif Display',serif;font-size:20px">${lh.sleepScore||'—'}</div><div style="font-size:9px;color:var(--text3);font-style:italic;margin-top:3px">sleep</div></div><div><div style="font-family:'DM Serif Display',serif;font-size:20px">${lh.hrv||'—'}</div><div style="font-size:9px;color:var(--text3);font-style:italic;margin-top:3px">hrv</div></div><div><div style="font-family:'DM Serif Display',serif;font-size:16px">${lh.steps?lh.steps.toLocaleString():'—'}</div><div style="font-size:9px;color:var(--text3);font-style:italic;margin-top:3px">steps</div></div><div><div style="font-family:'DM Serif Display',serif;font-size:16px">${lh.sleepHours||'—'}h</div><div style="font-size:9px;color:var(--text3);font-style:italic;margin-top:3px">sleep</div></div><div><div style="font-family:'DM Serif Display',serif;font-size:16px">${lh.restingHR||'—'}</div><div style="font-size:9px;color:var(--text3);font-style:italic;margin-top:3px">hr</div></div></div>`:'<div class="empty">no data today</div>'}
+      </div>
+      <div class="card">
+        <div class="card-label">Finance <button class="see-all" onclick="go('finance')">view</button></div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center;padding-top:4px">
+          <div><div style="font-family:'DM Serif Display',serif;font-size:17px;color:var(--green)">${$M(inc)}</div><div style="font-size:9px;color:var(--text3);font-style:italic;margin-top:3px">income</div></div>
+          <div><div style="font-family:'DM Serif Display',serif;font-size:17px;color:var(--red)">${$M(exp)}</div><div style="font-size:9px;color:var(--text3);font-style:italic;margin-top:3px">expenses</div></div>
+          <div><div style="font-family:'DM Serif Display',serif;font-size:17px;color:${inc-exp>=0?'var(--green)':'var(--red)'}">${$M(inc-exp)}</div><div style="font-size:9px;color:var(--text3);font-style:italic;margin-top:3px">net</div></div>
         </div>
       </div>
     </div>
 
-    <div class="two-col">
-      <div class="card">
-        <div class="card-label">Habits <button class="see-all" onclick="go('habits')">view all</button></div>
-        ${S.habits.length===0?'<div class="empty">none yet</div>':S.habits.map((h,i)=>{
-          const c=wkChecks(h),done=c[DOW()];
-          return`<div class="task-row">
-            <div class="task-cb${done?' done':''}" onclick="togHabit(${i},${DOW()})"></div>
-            <span class="task-txt">${esc(h.name)}</span>
-            <span style="font-size:11px;color:var(--text3);font-style:italic">${calcStreak(h)}wk</span>
-          </div>`;
-        }).join('')}
+    <div class="ai-banner" style="margin-bottom:0">
+      <div class="ai-inner">
+        <div class="ai-label">AI Briefing</div>
+        <div class="ai-text" id="ai-home">Tap for your personalised daily briefing.</div>
       </div>
-      <div class="card">
-        <div class="card-label">Goals <span style="font-size:10px;color:var(--text3);font-style:italic;text-transform:none;letter-spacing:0">${avgG}%</span></div>
-        ${d.goals.length===0?'<div class="empty">none yet</div>':d.goals.slice(0,5).map(g=>`
-          <div class="goal-row">
-            <div class="goal-top"><span class="goal-name">${esc(g.text)}</span><span class="goal-pct">${g.pct}%</span></div>
-            <div class="pbar"><div class="pbar-fill" style="width:${g.pct}%"></div></div>
-          </div>`).join('')}
-      </div>
+      <button class="ai-btn" onclick="homeInsight()">Insight ↗</button>
     </div>
-
-    <div class="two-col">
-      <div class="card">
-        <div class="card-label">Reading <button class="see-all" onclick="go('books')">view all</button></div>
-        ${reading.length===0?'<div class="empty">nothing in progress</div>':reading.slice(0,3).map(b=>`
-          <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);align-items:center">
-            ${b.cover?`<img src="${esc(b.cover)}" style="width:28px;height:42px;object-fit:cover;flex-shrink:0;border:1px solid var(--border)"/>`:`<div style="width:28px;height:42px;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;color:var(--text3)">▱</div>`}
-            <div style="flex:1;min-width:0">
-              <div style="font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-style:italic">${esc(b.title)}</div>
-              <div class="bk-prog" style="margin-top:6px"><div class="bk-prog-f" style="width:${b.progress||0}%"></div></div>
-              <div style="font-size:10px;color:var(--text3);margin-top:4px;font-style:italic">${b.progress||0}%</div>
-            </div>
-          </div>`).join('')}
-      </div>
-      <div class="card">
-        <div class="card-label">Health <button class="see-all" onclick="go('health')">log</button></div>
-        ${lh?`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center;padding-top:4px">
-          <div><div style="font-family:'DM Serif Display',serif;font-size:20px">${lh.readinessScore||'—'}</div><div style="font-size:9px;color:var(--text3);font-style:italic;margin-top:3px">readiness</div></div>
-          <div><div style="font-family:'DM Serif Display',serif;font-size:20px">${lh.sleepScore||'—'}</div><div style="font-size:9px;color:var(--text3);font-style:italic;margin-top:3px">sleep</div></div>
-          <div><div style="font-family:'DM Serif Display',serif;font-size:20px">${lh.hrv||'—'}</div><div style="font-size:9px;color:var(--text3);font-style:italic;margin-top:3px">hrv</div></div>
-          <div><div style="font-family:'DM Serif Display',serif;font-size:16px">${lh.steps?lh.steps.toLocaleString():'—'}</div><div style="font-size:9px;color:var(--text3);font-style:italic;margin-top:3px">steps</div></div>
-          <div><div style="font-family:'DM Serif Display',serif;font-size:16px">${lh.sleepHours||'—'}h</div><div style="font-size:9px;color:var(--text3);font-style:italic;margin-top:3px">sleep</div></div>
-          <div><div style="font-family:'DM Serif Display',serif;font-size:16px">${lh.restingHR||'—'}</div><div style="font-size:9px;color:var(--text3);font-style:italic;margin-top:3px">hr</div></div>
-        </div>`:'<div class="empty">no data logged today</div>'}
-      </div>
-    </div>
-
-    <div class="card" style="margin-bottom:${wins.length?'16px':'0'}">
-      <div class="card-label">Finance <button class="see-all" onclick="go('finance')">view</button></div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center;padding-top:4px">
-        <div><div style="font-family:'DM Serif Display',serif;font-size:18px;color:var(--green)">${$M(inc)}</div><div style="font-size:9px;color:var(--text3);font-style:italic;margin-top:3px">income</div></div>
-        <div><div style="font-family:'DM Serif Display',serif;font-size:18px;color:var(--red)">${$M(exp)}</div><div style="font-size:9px;color:var(--text3);font-style:italic;margin-top:3px">expenses</div></div>
-        <div><div style="font-family:'DM Serif Display',serif;font-size:18px;color:${inc-exp>=0?'var(--green)':'var(--red)'}">${$M(inc-exp)}</div><div style="font-size:9px;color:var(--text3);font-style:italic;margin-top:3px">net</div></div>
-      </div>
-    </div>
-
-    ${wins.length?`<div class="card" style="margin-bottom:0">
-      <div class="card-label">Recent wins</div>
-      ${wins.map((a,i)=>`<div class="achv-row"><span class="achv-ic">${ACHV_IC[i%ACHV_IC.length]}</span><span class="achv-txt">${esc(a.text)}</span><span class="achv-date">${a.date}</span></div>`).join('')}
-    </div>`:''}
   `;
   if(!calLoaded) loadCal();
 }
-
-function togHome(i){S.personal.tasks[i].done=!S.personal.tasks[i].done;rHome();sched()}
-function qa(){const i=$('qi'),v=i.value.trim();if(!v)return;S.personal.tasks.push({text:v,priority:'med',done:false});i.value='';rHome();sched()}
-
-async function homeInsight(){
-  const el=$('ai-home');if(!el)return;
-  el.textContent='preparing your briefing…';
-  const now=new Date();
-  const mo=now.getMonth(),yr=now.getFullYear();
-  const txMo=(S.finance.transactions||[]).filter(t=>{const d=new Date(t.date);return d.getMonth()===mo&&d.getFullYear()===yr});
-  const inc=txMo.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
-  const exp=txMo.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
-  const lh=S.health.length?S.health[S.health.length-1]:null;
-  const pend=S.personal.tasks.filter(t=>!t.done);
-  const todayEvs=calEvs.filter(e=>{const d=e.start;return d.getFullYear()===now.getFullYear()&&d.getMonth()===now.getMonth()&&d.getDate()===now.getDate()});
-  const wins=S.personal.achievements.slice(-2).map(a=>a.text).join(', ')||'none';
-  try{
-    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:`You are a warm, encouraging daily briefing assistant. Write a calm and elegant briefing (3-4 sentences) for today. Be specific, warm, and gently motivating.\n\nDate: ${now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}\nTasks pending: ${pend.length}\nToday's events: ${todayEvs.length?todayEvs.map(e=>e.title).join(', '):'none'}\nHabits done: ${S.habits.filter(h=>wkChecks(h)[DOW()]).length}/${S.habits.length}\nFinance: $${inc.toFixed(0)} income, $${exp.toFixed(0)} expenses\nHealth: ${lh?`readiness ${lh.readinessScore}, sleep ${lh.sleepScore}, hrv ${lh.hrv}`:'no data'}\nReading: ${S.books.filter(b=>b.status==='reading').map(b=>b.title).join(', ')||'nothing'}\nRecent wins: ${wins}\n\nWrite in an elegant, understated tone. No bullet points.`}]})});
-    const data=await r.json();
-    el.textContent=data.content?.find(b=>b.type==='text')?.text||'no briefing available';
-  }catch(e){el.textContent='could not load briefing'}
-}
-
 // ══════════════════════════════════════════════════════════════════════════════
 // TASKS (personal only)
 // ══════════════════════════════════════════════════════════════════════════════
